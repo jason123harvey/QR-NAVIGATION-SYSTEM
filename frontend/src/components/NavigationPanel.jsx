@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   ArrowRight, ArrowLeftRight, Clock, Footprints, Layers, 
-  CheckCircle2, Volume2, ChevronRight, ChevronLeft, Sparkles, Share2, MapPin
+  CheckCircle2, Volume2, VolumeX, ChevronRight, ChevronLeft, Sparkles, Share2, MapPin,
+  Mic, Pause, Play, Square, RotateCcw, Accessibility
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { formatFloor } from './LocationCard';
+import { getSpeechRecognitionConstructor, isSpeechSynthesisSupported, speakText, stopSpeaking } from '../utils/speech';
 
 export default function NavigationPanel({ 
   routeData, 
@@ -13,9 +15,8 @@ export default function NavigationPanel({
   activeStepIndex,
   onStepChange,
   onSwitchFloor
+  , currentLocation
 }) {
-  const [speaking, setSpeaking] = useState(false);
-
   if (!routeData) return null;
 
   const {
@@ -33,6 +34,150 @@ export default function NavigationPanel({
 
   const currentStep = instructions[activeStepIndex] || instructions[0] || '';
   const isLastStep = activeStepIndex === instructions.length - 1;
+
+  const [voiceEnabled, setVoiceEnabled] = useState(isSpeechSynthesisSupported());
+  const [voiceRunning, setVoiceRunning] = useState(isSpeechSynthesisSupported());
+  const [speaking, setSpeaking] = useState(false);
+  const [voiceMessage, setVoiceMessage] = useState('');
+  const [destinationReached, setDestinationReached] = useState(false);
+  const [voiceRate, setVoiceRate] = useState(0.95);
+  const [voicePitch, setVoicePitch] = useState(1);
+  const [voiceVolume, setVoiceVolume] = useState(1);
+  const [voiceName, setVoiceName] = useState('');
+  const [availableVoices, setAvailableVoices] = useState([]);
+  const [commandListening, setCommandListening] = useState(false);
+  const commandRecognitionRef = useRef(null);
+  const initialRouteRef = useRef(null);
+
+  useEffect(() => {
+    if (!isSpeechSynthesisSupported()) return undefined;
+    const loadVoices = () => setAvailableVoices(window.speechSynthesis.getVoices());
+    loadVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+  }, []);
+
+  const getVoiceOptions = () => ({
+    rate: voiceRate,
+    pitch: voicePitch,
+    volume: voiceVolume,
+    voice: availableVoices.find((voice) => voice.name === voiceName),
+  });
+
+  const speakInstruction = (index = activeStepIndex, advance = true) => {
+    if (!voiceEnabled || !isSpeechSynthesisSupported() || !instructions[index]) return;
+    window.speechSynthesis.cancel();
+    const utterance = new window.SpeechSynthesisUtterance(instructions[index]);
+    Object.assign(utterance, getVoiceOptions());
+    setSpeaking(true);
+    setVoiceMessage('Speaking current instruction');
+    utterance.onend = () => {
+      setSpeaking(false);
+      if (advance && voiceRunning && index < instructions.length - 1) {
+        onStepChange(index + 1);
+      } else if (advance && voiceRunning && index === instructions.length - 1) {
+        speakText(`You have reached ${destination_name}.`, getVoiceOptions());
+        setDestinationReached(true);
+        setVoiceMessage('Destination reached');
+      }
+    };
+    utterance.onerror = () => {
+      setSpeaking(false);
+      setVoiceMessage('Voice output is unavailable. Text directions remain available.');
+    };
+    window.speechSynthesis.speak(utterance);
+  };
+
+  useEffect(() => {
+    if (initialRouteRef.current === routeData) return;
+    initialRouteRef.current = routeData;
+    if (voiceEnabled) speakInstruction(0);
+    return () => stopSpeaking();
+  }, [routeData]);
+
+  useEffect(() => {
+    if (voiceEnabled && voiceRunning && activeStepIndex > 0) speakInstruction(activeStepIndex);
+  }, [activeStepIndex]);
+
+  const handleRepeat = () => speakInstruction(activeStepIndex, false);
+
+  const handlePause = () => {
+    if (isSpeechSynthesisSupported()) {
+      window.speechSynthesis.pause();
+      setVoiceMessage('Voice navigation paused');
+    }
+  };
+
+  const handleResume = () => {
+    if (isSpeechSynthesisSupported() && window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+      setVoiceMessage('Voice navigation resumed');
+    } else {
+      setVoiceRunning(true);
+      speakInstruction(activeStepIndex);
+    }
+  };
+
+  const handleStop = () => {
+    stopSpeaking();
+    setVoiceRunning(false);
+    setSpeaking(false);
+    setVoiceMessage('Voice navigation stopped. The route remains visible.');
+  };
+
+  const speakWhereAmI = () => {
+    const location = currentLocation || { name: source_name, floor: source_floor };
+    const message = `You are currently at ${location.name} on the ${formatFloor(location.floor).toLowerCase()}.`;
+    setVoiceMessage(message);
+    speakText(message, getVoiceOptions());
+  };
+
+  const speakHowFar = () => {
+    const message = `You have approximately ${distance} meters on this route to ${destination_name}.`;
+    setVoiceMessage(message);
+    speakText(message, getVoiceOptions());
+  };
+
+  const handleCommand = (command) => {
+    const normalized = command.toLowerCase();
+    if (normalized.includes('repeat')) handleRepeat();
+    else if (normalized.includes('where am i')) speakWhereAmI();
+    else if (normalized.includes('how far')) speakHowFar();
+    else if (normalized.includes('pause')) handlePause();
+    else if (normalized.includes('resume')) handleResume();
+    else if (normalized.includes('stop')) handleStop();
+    else if (normalized.includes('next')) onStepChange(Math.min(activeStepIndex + 1, instructions.length - 1));
+    else setVoiceMessage('Command not recognized. Try repeat, where am I, how far, pause, resume, or stop.');
+  };
+
+  const listenForCommand = () => {
+    const Recognition = getSpeechRecognitionConstructor();
+    if (!Recognition) {
+      setVoiceMessage('Voice commands are not supported in this browser.');
+      return;
+    }
+    commandRecognitionRef.current?.abort();
+    const recognition = new Recognition();
+    recognition.lang = 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onstart = () => {
+      setCommandListening(true);
+      setVoiceMessage('Listening for a navigation command');
+    };
+    recognition.onresult = (event) => handleCommand(event.results?.[0]?.[0]?.transcript || '');
+    recognition.onerror = () => setVoiceMessage('No command detected. Please try again.');
+    recognition.onend = () => setCommandListening(false);
+    commandRecognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  const handleVoiceToggle = (enabled) => {
+    setVoiceEnabled(enabled);
+    setVoiceRunning(enabled);
+    if (!enabled) stopSpeaking();
+    else speakInstruction(activeStepIndex);
+  };
 
   const handleNextStep = () => {
     if (activeStepIndex < instructions.length - 1) {
@@ -63,18 +208,6 @@ export default function NavigationPanel({
       if (path_nodes[prevIdx] && onSwitchFloor) {
         onSwitchFloor(path_nodes[prevIdx].floor);
       }
-    }
-  };
-
-  const handleSpeakInstruction = () => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(currentStep);
-      utterance.rate = 0.95;
-      utterance.onstart = () => setSpeaking(true);
-      utterance.onend = () => setSpeaking(false);
-      utterance.onerror = () => setSpeaking(false);
-      window.speechSynthesis.speak(utterance);
     }
   };
 
@@ -185,17 +318,64 @@ export default function NavigationPanel({
             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: isLastStep ? '#065f46' : 'var(--primary-dark)', textTransform: 'uppercase' }}>
               Step {activeStepIndex + 1} of {instructions.length}
             </span>
-            <button
-              onClick={handleSpeakInstruction}
-              style={{ color: isLastStep ? '#065f46' : 'var(--primary-dark)', display: 'flex', alignItems: 'center' }}
-              title="Audio Guidance"
-            >
-              <Volume2 size={16} />
-            </button>
+              {voiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </div>
 
           <div style={{ fontWeight: 600, fontSize: '0.95rem', color: isLastStep ? '#064e3b' : 'var(--primary-dark)' }}>
             {currentStep}
+          </div>
+
+          {destinationReached && (
+            <div className="destination-reached-banner" role="status">
+              <CheckCircle2 size={18} />
+              <span>Destination Reached: {destination_name}</span>
+            </div>
+          )}
+
+          <div className="voice-navigation-controls">
+            <div className="voice-navigation-status">
+              <span>{voiceEnabled ? (speaking ? 'Voice Navigation: Speaking' : 'Voice Navigation: On') : 'Voice Navigation: Text only'}</span>
+              {voiceMessage && <small>{voiceMessage}</small>}
+            </div>
+            <div className="voice-control-actions">
+              <button type="button" className="btn btn-sm btn-secondary" onClick={handleRepeat} disabled={!voiceEnabled} title="Repeat current instruction">
+                <RotateCcw size={14} /> Repeat
+              </button>
+              <button type="button" className="btn btn-sm btn-secondary" onClick={handlePause} disabled={!voiceEnabled} title="Pause voice navigation">
+                <Pause size={14} /> Pause
+              </button>
+              <button type="button" className="btn btn-sm btn-secondary" onClick={handleResume} disabled={!voiceEnabled} title="Resume voice navigation">
+                <Play size={14} /> Resume
+              </button>
+              <button type="button" className="btn btn-sm btn-danger-outline" onClick={handleStop} disabled={!voiceEnabled} title="Stop voice navigation">
+                <Square size={14} /> Stop
+              </button>
+            </div>
+            <div className="voice-control-actions">
+              <button type="button" className="btn btn-sm btn-outline-primary" onClick={listenForCommand} disabled={commandListening}>
+                <Mic size={14} /> {commandListening ? 'Listening...' : 'Voice command'}
+              </button>
+              <button type="button" className="btn btn-sm btn-secondary" onClick={speakWhereAmI}>
+                <MapPin size={14} /> Where am I?
+              </button>
+              <button type="button" className="btn btn-sm btn-secondary" onClick={speakHowFar}>
+                <Footprints size={14} /> How far?
+              </button>
+            </div>
+            <div className="voice-settings">
+              <label>Voice <input type="checkbox" checked={voiceEnabled} onChange={(event) => handleVoiceToggle(event.target.checked)} /></label>
+              <label>Rate <input type="range" min="0.8" max="1.2" step="0.05" value={voiceRate} onChange={(event) => setVoiceRate(Number(event.target.value))} /></label>
+              <label>Pitch <input type="range" min="0.8" max="1.2" step="0.05" value={voicePitch} onChange={(event) => setVoicePitch(Number(event.target.value))} /></label>
+              <label>Volume <input type="range" min="0" max="1" step="0.1" value={voiceVolume} onChange={(event) => setVoiceVolume(Number(event.target.value))} /></label>
+              {availableVoices.length > 1 && (
+                <label>Language / voice
+                  <select value={voiceName} onChange={(event) => setVoiceName(event.target.value)}>
+                    <option value="">Default English voice</option>
+                    {availableVoices.map((voice) => <option key={voice.voiceURI} value={voice.name}>{voice.name}</option>)}
+                  </select>
+                </label>
+              )}
+            </div>
           </div>
 
           {/* Stepper Navigation Buttons */}

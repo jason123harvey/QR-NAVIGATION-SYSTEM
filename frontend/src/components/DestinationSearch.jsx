@@ -1,16 +1,22 @@
 import React, { useState, useMemo } from 'react';
 import { Search, X, MapPin, Navigation, Filter, Sparkles } from 'lucide-react';
 import { getLocationIcon, formatFloor } from './LocationCard';
+import VoiceDestinationInput from './VoiceDestinationInput';
 
 export default function DestinationSearch({ 
   locations = [], 
   currentLocation, 
   onSelectDestination,
+  onVoiceTranscript,
+  searchTerm: controlledSearchTerm,
+  onSearchTermChange,
   placeholder = "Search destination (e.g., Computer Lab, Library, ECE)..." 
 }) {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [localSearchTerm, setLocalSearchTerm] = useState('');
   const [selectedFloor, setSelectedFloor] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const searchTerm = controlledSearchTerm ?? localSearchTerm;
+  const setSearchTerm = onSearchTermChange || setLocalSearchTerm;
 
   const categories = [
     { id: 'all', label: 'All Places' },
@@ -95,6 +101,11 @@ export default function DestinationSearch({
           </button>
         )}
       </div>
+
+      <VoiceDestinationInput onTranscript={(transcript) => {
+        setSearchTerm(transcript);
+        onVoiceTranscript?.(transcript);
+      }} />
 
       {/* Category Pills & Floor Filter */}
       <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.25rem', alignItems: 'center' }}>

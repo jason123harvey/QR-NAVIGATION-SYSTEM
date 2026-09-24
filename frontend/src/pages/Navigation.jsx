@@ -9,6 +9,7 @@ import NavigationPanel from '../components/NavigationPanel';
 import DestinationSearch from '../components/DestinationSearch';
 import { fetchLocations, fetchLocationByCode, fetchRoute } from '../services/api';
 import { formatFloor } from '../components/LocationCard';
+import { findDestinationMatches, normalizeSpokenDestination, speakText } from '../utils/speech';
 
 export default function Navigation({ currentLocation, onSetCurrentLocation }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -22,6 +23,10 @@ export default function Navigation({ currentLocation, onSetCurrentLocation }) {
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [routeError, setRouteError] = useState(null);
+  const [voiceSearchTerm, setVoiceSearchTerm] = useState('');
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [voiceMatches, setVoiceMatches] = useState([]);
+  const [accessibilityMode, setAccessibilityMode] = useState(false);
 
   // Load all locations for the map & search
   useEffect(() => {
@@ -90,12 +95,26 @@ export default function Navigation({ currentLocation, onSetCurrentLocation }) {
 
   const handleSelectDestination = (destination) => {
     setDestLoc(destination);
+    setVoiceMatches([]);
     const srcCode = startLoc ? startLoc.location_code : 'MAIN_ENTRANCE';
     if (!startLoc && locations.length > 0) {
       const defaultStart = locations.find((l) => l.location_code === 'MAIN_ENTRANCE') || locations[0];
       setStartLoc(defaultStart);
     }
     setSearchParams({ source: srcCode, destination: destination.location_code });
+  };
+
+  const handleVoiceTranscript = (transcript) => {
+    setVoiceTranscript(transcript);
+    if (!transcript) {
+      setVoiceMatches([]);
+      return;
+    }
+    const matches = findDestinationMatches(transcript, locations, startLoc);
+    setVoiceMatches(matches.slice(0, 5));
+    if (matches.length === 1) {
+      speakText(`I found ${matches[0].name} on the ${formatFloor(matches[0].floor).toLowerCase()}. Please confirm the destination.`);
+    }
   };
 
   const handleReverseRoute = () => {
@@ -134,10 +153,18 @@ export default function Navigation({ currentLocation, onSetCurrentLocation }) {
   };
 
   return (
-    <div className="navigation-page-container">
+    <div className={`navigation-page-container ${accessibilityMode ? 'accessibility-mode' : ''}`}>
       <div className="nav-split-layout">
         {/* Left Side Navigation / Search Panel */}
         <div className="nav-sidebar">
+          <label className="accessibility-toggle" style={{ padding: '0.75rem 1.25rem', borderBottom: '1px solid var(--border-subtle)' }}>
+            <input
+              type="checkbox"
+              checked={accessibilityMode}
+              onChange={(event) => setAccessibilityMode(event.target.checked)}
+            />
+            <span>Accessibility mode</span>
+          </label>
           {/* Destination Selection State (If route is not computed or user is picking destination) */}
           {!routeData ? (
             <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -208,13 +235,47 @@ export default function Navigation({ currentLocation, onSetCurrentLocation }) {
                   locations={locations}
                   currentLocation={startLoc}
                   onSelectDestination={handleSelectDestination}
+                  searchTerm={voiceSearchTerm}
+                  onSearchTermChange={(value) => {
+                    setVoiceSearchTerm(value);
+                    if (!value) setVoiceMatches([]);
+                  }}
+                  onVoiceTranscript={handleVoiceTranscript}
                 />
+                {voiceMatches.length > 0 && (
+                  <div className="voice-destination-confirmation" aria-live="polite">
+                    <div>
+                      <strong>{voiceMatches.length === 1 ? 'Destination found' : 'Choose a destination'}</strong>
+                      <span>{voiceMatches.length === 1 ? 'Confirm the location before starting navigation.' : `Matches for “${normalizeSpokenDestination(voiceSearchTerm)}”.`}</span>
+                    </div>
+                    {voiceMatches.map((location) => (
+                      <div key={location.location_code} className="voice-match-row">
+                        <div>
+                          <strong>{location.name}</strong>
+                          <span>{formatFloor(location.floor)} • {location.building}</span>
+                        </div>
+                        <button type="button" className="btn btn-sm btn-primary" onClick={() => handleSelectDestination(location)}>
+                          Confirm
+                        </button>
+                      </div>
+                    ))}
+                    <button type="button" className="btn btn-sm btn-secondary" onClick={() => setVoiceMatches([])}>
+                      Try again
+                    </button>
+                  </div>
+                )}
+                {voiceTranscript && voiceMatches.length === 0 && (
+                  <div className="voice-destination-confirmation voice-destination-empty" role="status">
+                    No matching destination found. Try a shorter name or type your destination.
+                  </div>
+                )}
               </div>
             </div>
           ) : (
             /* Active Route Guidance Panel */
             <NavigationPanel
               routeData={routeData}
+              currentLocation={startLoc}
               activeStepIndex={activeStepIndex}
               onStepChange={setActiveStepIndex}
               onReverseRoute={handleReverseRoute}

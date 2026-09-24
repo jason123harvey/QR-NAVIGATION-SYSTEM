@@ -758,6 +758,253 @@ button {
   line-height: 1.4;
 }
 
+/* Voice navigation controls */
+.voice-destination-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.voice-destination-actions,
+.voice-transcript-row,
+.voice-control-actions,
+.voice-navigation-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.voice-destination-actions {
+  justify-content: space-between;
+}
+
+.voice-mic-button {
+  min-height: 44px;
+}
+
+.voice-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.voice-status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.voice-status.is-listening .voice-status-dot {
+  background: var(--success);
+  box-shadow: 0 0 0 4px var(--success-light);
+}
+
+.voice-transcript-row {
+  justify-content: space-between;
+  padding: 0.5rem 0.65rem;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.voice-transcript-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.voice-transcript-actions button {
+  color: var(--primary);
+  padding: 0.25rem;
+}
+
+.voice-feedback {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.voice-destination-confirmation {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+  padding: 0.85rem;
+  background: var(--info-light);
+  border: 1px solid #7dd3fc;
+  border-radius: var(--radius-md);
+  color: #164e63;
+  font-size: 0.82rem;
+}
+
+.voice-destination-confirmation > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.voice-match-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.voice-match-row > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.voice-match-row span {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.voice-destination-empty {
+  background: var(--warning-light);
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.accessibility-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.voice-navigation-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid rgba(79, 70, 229, 0.15);
+}
+
+.destination-reached-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background: var(--success-light);
+  color: #065f46;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.voice-navigation-status {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  color: var(--primary-dark);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.voice-navigation-status small {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.voice-control-actions {
+  flex-wrap: wrap;
+}
+
+.voice-settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 0.75rem;
+  padding-top: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.voice-settings label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.voice-settings select {
+  max-width: 145px;
+  min-width: 0;
+}
+
+.accessibility-mode {
+  font-size: 1.08rem;
+}
+
+.accessibility-mode .btn,
+.accessibility-mode input,
+.accessibility-mode select {
+  min-height: 46px;
+}
+
+.accessibility-mode .instruction-text,
+.accessibility-mode .voice-feedback,
+.accessibility-mode .voice-status {
+  font-size: 1rem;
+}
+
+@media (max-width: 900px) {
+  .navigation-page-container {
+    height: auto;
+    min-height: calc(100vh - 65px);
+    overflow: visible;
+  }
+
+  .nav-split-layout {
+    height: auto;
+    min-height: calc(100vh - 65px);
+  }
+
+  .nav-sidebar {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .map-canvas-wrapper {
+    min-height: 58vh;
+  }
+
+  .voice-mic-button {
+    flex: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .voice-destination-actions,
+  .voice-match-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .voice-status {
+    justify-content: center;
+  }
+
+  .voice-settings {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Indoor SVG Map Canvas Container */
 .map-canvas-wrapper {
   position: relative;
