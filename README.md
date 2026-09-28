@@ -166,6 +166,12 @@ python app.py
 ```
 > The backend server will start on `http://127.0.0.1:5000`. The SQLite database initializes and seeds automatically on startup.
 
+### Deploying the Backend to Render
+
+The repository includes a Render Blueprint in `render.yaml`. In Render, create a new Blueprint Instance from this repository and deploy the `naviqr-backend` web service. It installs `backend/requirements.txt`, runs the Flask app with Gunicorn, and checks `/api/health`.
+
+The Blueprint mounts a persistent disk at `/var/data` and stores SQLite at `/var/data/database.db`, so locations and connections survive service restarts and redeploys. The disk requires a paid Render instance. To configure the service manually, set the root directory to `backend`, use `pip install -r requirements.txt` as the build command and `gunicorn app:app --bind 0.0.0.0:$PORT --workers 1` as the start command. Set `DATABASE_PATH` to a path on a persistent disk if data must be retained.
+
 ### 3. Frontend Setup
 ```bash
 # In a new terminal window, navigate to the frontend directory
@@ -327,5 +333,6 @@ The indoor graph $G = (V, E)$ is modeled with:
 - **Wheelchair / Accessibility Routing Mode**: Add route preference filters that avoid staircases and prioritize elevator paths only.
 - **BLE Beacon Snapping**: Hybrid BLE RSSI signal fusion to automatically advance navigation steps as user walks through hallways.
 - **3D Digital Twin Visualization**: Interactive Three.js 3D building exploration.
-#   Q R - N A V I G A T I O N - S Y S T E M  
+#   Q R - N A V I G A T I O N - S Y S T E M 
+ 
  

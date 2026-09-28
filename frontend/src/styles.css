@@ -1006,6 +1006,46 @@ button {
 }
 
 /* Indoor SVG Map Canvas Container */
+.map-panel-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  background: #0f172a;
+}
+
+.map-view-toggle {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 30;
+  display: inline-flex;
+  gap: 0.35rem;
+  padding: 0.3rem;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 999px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.25);
+}
+
+.map-view-toggle button {
+  min-height: 40px;
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.map-view-toggle button.active {
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  color: #fff;
+}
+
 .map-canvas-wrapper {
   position: relative;
   flex: 1;
@@ -1013,6 +1053,7 @@ button {
   flex-direction: column;
   background-color: #0f172a;
   overflow: hidden;
+  min-height: 440px;
 }
 
 .map-toolbar {

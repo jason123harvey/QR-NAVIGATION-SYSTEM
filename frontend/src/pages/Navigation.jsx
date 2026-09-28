@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { 
   Navigation as NavIcon, QrCode, Search, MapPin, AlertCircle, 
@@ -10,6 +10,8 @@ import DestinationSearch from '../components/DestinationSearch';
 import { fetchLocations, fetchLocationByCode, fetchRoute } from '../services/api';
 import { formatFloor } from '../components/LocationCard';
 import { findDestinationMatches, normalizeSpokenDestination, speakText } from '../utils/speech';
+import { QRPositionProvider } from '../services/position/QRPositionProvider';
+import { EstimatedRoutePositionProvider } from '../services/position/EstimatedRoutePositionProvider';
 
 export default function Navigation({ currentLocation, onSetCurrentLocation }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -27,6 +29,41 @@ export default function Navigation({ currentLocation, onSetCurrentLocation }) {
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [voiceMatches, setVoiceMatches] = useState([]);
   const [accessibilityMode, setAccessibilityMode] = useState(false);
+
+  const navigationState = useMemo(() => {
+    const currentPosition = startLoc || currentLocation || routeData?.path_nodes?.[0] || null;
+    const destinationPosition = destLoc || routeData?.path_nodes?.[routeData.path_nodes.length - 1] || null;
+    const routeNodes = routeData?.path_nodes || [];
+    const currentRouteIndex = Math.min(Math.max(activeStepIndex, 0), Math.max(routeNodes.length - 1, 0));
+    return {
+      currentLocation: currentPosition,
+      destination: destinationPosition,
+      route: routeNodes,
+      currentRouteIndex,
+      currentInstruction: routeData?.instructions?.[activeStepIndex] || routeData?.instructions?.[0] || '',
+      floor: activeFloor,
+      remainingDistance: routeData ? routeData.distance : 0,
+      trackingMode: currentPosition ? 'qr' : (routeNodes.length ? 'estimated' : 'unknown'),
+      trackingConfidence: currentPosition ? 'QR Verified' : (routeNodes.length ? 'Estimated' : 'Unknown'),
+      isNavigating: Boolean(routeData)
+    };
+  }, [startLoc, currentLocation, routeData, activeStepIndex, activeFloor, destLoc]);
+
+  const qrPositionProvider = useMemo(() => new QRPositionProvider(startLoc || currentLocation), [startLoc, currentLocation]);
+  const estimatedRouteProvider = useMemo(() => new EstimatedRoutePositionProvider(routeData?.path_nodes || [], startLoc || currentLocation), [routeData, startLoc, currentLocation]);
+
+  useEffect(() => {
+    if (qrPositionProvider) {
+      qrPositionProvider.updateCurrentLocation(startLoc || currentLocation || null);
+    }
+  }, [qrPositionProvider, startLoc, currentLocation]);
+
+  useEffect(() => {
+    if (estimatedRouteProvider && routeData?.path_nodes?.length) {
+      const estimateIndex = Math.min(activeStepIndex, routeData.path_nodes.length - 1);
+      estimatedRouteProvider.setCurrentIndex(estimateIndex);
+    }
+  }, [estimatedRouteProvider, routeData, activeStepIndex]);
 
   // Load all locations for the map & search
   useEffect(() => {
@@ -285,7 +322,7 @@ export default function Navigation({ currentLocation, onSetCurrentLocation }) {
           )}
         </div>
 
-        {/* Right Side Interactive Multi-Floor SVG Map */}
+        {/* Right Side Interactive Multi-Floor Map */}
         <IndoorMap
           locations={locations}
           currentFloor={activeFloor}
