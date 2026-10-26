@@ -11,7 +11,26 @@ import qr_generator
 
 app = Flask(__name__)
 # Enable CORS for all routes and origins (Vite dev server and production)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+frontend_urls = os.environ.get(
+    "FRONTEND_URL",
+    "http://localhost:5173"
+)
+
+allowed_origins = [
+    url.strip().rstrip("/")
+    for url in frontend_urls.split(",")
+    if url.strip()
+]
+
+CORS(
+    app,
+    resources={
+        r"/api/*": {
+            "origins": allowed_origins
+        }
+    }
+)
 
 # Ensure database is initialized on startup
 with app.app_context():
