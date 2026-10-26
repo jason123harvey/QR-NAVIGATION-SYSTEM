@@ -1,4 +1,14 @@
-const API_BASE = '/api';
+
+function getApiBaseUrl() {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (!envUrl || !envUrl.trim()) {
+    return '/api';
+  }
+  const clean = envUrl.trim().replace(/\/+$/, '');
+  return clean.endsWith('/api') ? clean : `${clean}/api`;
+}
+
+const API_BASE = getApiBaseUrl();
 
 export async function fetchLocations({ floor, type, search } = {}) {
   const params = new URLSearchParams();

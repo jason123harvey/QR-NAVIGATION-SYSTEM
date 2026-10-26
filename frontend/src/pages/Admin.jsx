@@ -73,10 +73,16 @@ export default function Admin() {
   useEffect(() => {
     if (activeTab !== 'qrcodes' || locations.length === 0) return;
     let cancelled = false;
-    Promise.all(locations.map((loc) => fetchQRCode(loc.location_code)))
-      .then((codes) => {
+    Promise.allSettled(locations.map((loc) => fetchQRCode(loc.location_code)))
+      .then((results) => {
         if (!cancelled) {
-          setQrImages(Object.fromEntries(codes.map((code) => [code.location_code, code.qr_image_base64])));
+          const loaded = {};
+          results.forEach((res) => {
+            if (res.status === 'fulfilled' && res.value) {
+              loaded[res.value.location_code] = res.value.qr_image_base64;
+            }
+          });
+          setQrImages(loaded);
         }
       })
       .catch(() => showNotification('Failed to load QR code previews', 'error'));

@@ -12,25 +12,51 @@ import qr_generator
 app = Flask(__name__)
 # Enable CORS for all routes and origins (Vite dev server and production)
 
+# Attempt to load .env file if available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 frontend_urls = os.environ.get(
     "FRONTEND_URL",
     "http://localhost:5173"
 )
 
-allowed_origins = [
+configured_origins = [
     url.strip().rstrip("/")
     for url in frontend_urls.split(",")
     if url.strip()
 ]
+dev_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://localhost:5000",
+    "http://127.0.0.1:5000"
+]
+allowed_origins = list(set(configured_origins + dev_origins))
 
+# In development allow any origin to facilitate LAN/mobile QR testing, else allowed_origins
 CORS(
     app,
     resources={
         r"/api/*": {
-            "origins": allowed_origins
+            "origins": allowed_origins if os.environ.get("FLASK_ENV") == "production" else "*"
         }
     }
 )
+
+def get_frontend_scan_url():
+    """Resolves the frontend scan base URL reliably for QR codes."""
+    base_url = request.args.get("base_url")
+    if base_url:
+        return base_url.rstrip("/") + ("" if "location=" in base_url else "/scan?location=")
+    frontend_env = os.environ.get("FRONTEND_URL")
+    if frontend_env:
+        return frontend_env.rstrip("/") + "/scan?location="
+    return request.host_url.replace(":5000", ":5173").rstrip("/") + "/scan?location="
 
 # Ensure database is initialized on startup
 with app.app_context():
@@ -52,7 +78,10 @@ def health_check():
 @app.route("/api/locations", methods=["GET"])
 def get_locations():
     floor_param = request.args.get("floor")
-    floor = int(floor_param) if floor_param is not None and floor_param != "" else None
+    try:
+        floor = int(floor_param) if floor_param is not None and floor_param != "" else None
+    except ValueError:
+        floor = None
     loc_type = request.args.get("type")
     search = request.args.get("search")
     
@@ -60,10 +89,10 @@ def get_locations():
     return jsonify(locations)
 
 @app.route("/api/locations/<location_code>", methods=["GET"])
-def get_location(location_code):
+def get_location_detail(location_code):
     loc = models.get_location_by_code(location_code)
     if not loc:
-        return jsonify({"error": f"Location '{location_code}' not found."}), 404
+        return jsonify({"error": f"Location with code '{location_code}' not found."}), 404
     return jsonify(loc)
 
 @app.route("/api/locations", methods=["POST"])
@@ -72,8 +101,8 @@ def add_location():
     if not data:
         return jsonify({"error": "Missing JSON request body."}), 400
         
-    code = data.get("location_code", "").upper().strip()
-    name = data.get("name", "").strip()
+    code = data.get("location_code")
+    name = data.get("name")
     
     if not code or not name:
         return jsonify({"error": "Both location_code and name are required."}), 400
@@ -85,7 +114,7 @@ def add_location():
     try:
         new_loc = models.create_location(data)
         # Automatically register QR code for the new location
-        base_url = request.host_url.replace("5000", "5173") + "scan?location="
+        base_url = get_frontend_scan_url()
         models.save_or_update_qr(code, f"{base_url}{code}")
         return jsonify(new_loc), 201
     except Exception as e:
@@ -135,7 +164,8 @@ def add_connection():
     dst = data.get("destination_location")
     dist = data.get("distance")
     hint = data.get("direction_hint", "")
-    bidirectional = data.get("bidirectional", True)
+    raw_bi = data.get("bidirectional", True)
+    bidirectional = raw_bi in [True, "true", "True", 1, "1"]
     
     if not src or not dst or dist is None:
         return jsonify({"error": "source_location, destination_location, and distance are required."}), 400
@@ -161,11 +191,15 @@ def delete_connection(conn_id):
 # Navigation & Routing Endpoint
 # ==========================================
 
-@app.route("/api/navigation/route", methods=["POST"])
+@app.route("/api/navigation/route", methods=["GET", "POST"])
 def compute_route():
-    data = request.get_json() or {}
-    source = data.get("source", "").strip()
-    destination = data.get("destination", "").strip()
+    if request.method == "POST":
+        data = request.get_json() or {}
+        source = data.get("source", "").strip()
+        destination = data.get("destination", "").strip()
+    else:
+        source = request.args.get("source", "").strip()
+        destination = request.args.get("destination", "").strip()
     
     if not source or not destination:
         return jsonify({
@@ -190,7 +224,7 @@ def get_qr(location_code):
     if not loc:
         return jsonify({"error": f"Location '{location_code}' not found."}), 404
         
-    base_url = request.args.get("base_url") or (request.host_url.replace(":5000", ":5173").rstrip("/") + "/scan?location=")
+    base_url = get_frontend_scan_url()
     b64_img, payload = qr_generator.generate_qr_base64(
         location_code=loc["location_code"],
         base_url=base_url,
@@ -211,7 +245,7 @@ def download_qr_image(location_code):
     if not loc:
         return jsonify({"error": f"Location '{location_code}' not found."}), 404
         
-    base_url = request.args.get("base_url") or (request.host_url.replace(":5000", ":5173").rstrip("/") + "/scan?location=")
+    base_url = get_frontend_scan_url()
     img_buffer = qr_generator.generate_qr_bytes(
         location_code=loc["location_code"],
         base_url=base_url,
@@ -238,7 +272,7 @@ def download_qr_batch():
     if not locations:
         return jsonify({"error": "No matching locations found."}), 404
 
-    base_url = request.args.get("base_url") or (request.host_url.replace(":5000", ":5173").rstrip("/") + "/scan?location=")
+    base_url = get_frontend_scan_url()
     archive = io.BytesIO()
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as batch:
         for loc in locations:

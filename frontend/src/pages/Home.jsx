@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  QrCode, Map, Compass, Navigation, ArrowRight, 
-  Layers, Sparkles, Building2, MapPin, CheckCircle2 
+import {
+  QrCode, Map, Compass, Navigation, ArrowRight,
+  Layers, Sparkles, Building2, MapPin, CheckCircle2
 } from 'lucide-react';
 import { fetchLocations } from '../services/api';
 import LocationCard from '../components/LocationCard';
@@ -31,10 +31,14 @@ export default function Home({ onSetCurrentLocation }) {
     navigate(`/scan?location=${location.location_code}`);
   };
 
-  const handleNavigateTo = (location) => {
-    navigate(`/navigate?destination=${location.location_code}`);
-  };
 
+  const handleNavigateTo = (location) => {
+    navigate(
+      `/navigate?source=MAIN_ENTRANCE&destination=${encodeURIComponent(
+        location.location_code
+      )}`
+    );
+  };
   return (
     <div>
       {/* Hero Section */}

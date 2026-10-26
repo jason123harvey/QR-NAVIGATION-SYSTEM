@@ -64,19 +64,16 @@ export default function NavigationPanel({
     voice: availableVoices.find((voice) => voice.name === voiceName),
   });
 
-  const speakInstruction = (index = activeStepIndex, advance = true) => {
+  const speakInstruction = (index = activeStepIndex) => {
     if (!voiceEnabled || !isSpeechSynthesisSupported() || !instructions[index]) return;
     window.speechSynthesis.cancel();
     const utterance = new window.SpeechSynthesisUtterance(instructions[index]);
     Object.assign(utterance, getVoiceOptions());
     setSpeaking(true);
-    setVoiceMessage('Speaking current instruction');
+    setVoiceMessage(`Step ${index + 1} of ${instructions.length}`);
     utterance.onend = () => {
       setSpeaking(false);
-      if (advance && voiceRunning && index < instructions.length - 1) {
-        onStepChange(index + 1);
-      } else if (advance && voiceRunning && index === instructions.length - 1) {
-        speakText(`You have reached ${destination_name}.`, getVoiceOptions());
+      if (index === instructions.length - 1) {
         setDestinationReached(true);
         setVoiceMessage('Destination reached');
       }
@@ -96,10 +93,12 @@ export default function NavigationPanel({
   }, [routeData]);
 
   useEffect(() => {
-    if (voiceEnabled && voiceRunning && activeStepIndex > 0) speakInstruction(activeStepIndex);
+    if (voiceEnabled && voiceRunning && activeStepIndex > 0) {
+      speakInstruction(activeStepIndex);
+    }
   }, [activeStepIndex]);
 
-  const handleRepeat = () => speakInstruction(activeStepIndex, false);
+  const handleRepeat = () => speakInstruction(activeStepIndex);
 
   const handlePause = () => {
     if (isSpeechSynthesisSupported()) {
@@ -146,8 +145,9 @@ export default function NavigationPanel({
     else if (normalized.includes('pause')) handlePause();
     else if (normalized.includes('resume')) handleResume();
     else if (normalized.includes('stop')) handleStop();
-    else if (normalized.includes('next')) onStepChange(Math.min(activeStepIndex + 1, instructions.length - 1));
-    else setVoiceMessage('Command not recognized. Try repeat, where am I, how far, pause, resume, or stop.');
+    else if (normalized.includes('next') || normalized.includes('forward')) handleNextStep();
+    else if (normalized.includes('back') || normalized.includes('previous')) handlePrevStep();
+    else setVoiceMessage('Command not recognized. Try next, back, repeat, where am I, how far, pause, or resume.');
   };
 
   const listenForCommand = () => {
@@ -185,18 +185,23 @@ export default function NavigationPanel({
       onStepChange(nextIdx);
 
       // Check if this step changes floors and update map
-      if (path_nodes[nextIdx]) {
-        const nextNodeFloor = path_nodes[nextIdx].floor;
-        if (onSwitchFloor) onSwitchFloor(nextNodeFloor);
+      const targetNode = path_nodes && path_nodes[Math.min(nextIdx, path_nodes.length - 1)];
+      if (targetNode && onSwitchFloor) {
+        onSwitchFloor(targetNode.floor);
       }
 
       if (nextIdx === instructions.length - 1) {
+        setDestinationReached(true);
         // Trigger celebration confetti
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
+        try {
+          confetti({
+            particleCount: 80,
+            spread: 70,
+            origin: { y: 0.6 }
+          });
+        } catch (e) {
+          console.warn('Confetti error:', e);
+        }
       }
     }
   };
@@ -205,8 +210,9 @@ export default function NavigationPanel({
     if (activeStepIndex > 0) {
       const prevIdx = activeStepIndex - 1;
       onStepChange(prevIdx);
-      if (path_nodes[prevIdx] && onSwitchFloor) {
-        onSwitchFloor(path_nodes[prevIdx].floor);
+      const targetNode = path_nodes && path_nodes[Math.min(prevIdx, path_nodes.length - 1)];
+      if (targetNode && onSwitchFloor) {
+        onSwitchFloor(targetNode.floor);
       }
     }
   };
@@ -420,8 +426,9 @@ export default function NavigationPanel({
               className={`instruction-item ${idx === activeStepIndex ? 'active' : ''}`}
               onClick={() => {
                 onStepChange(idx);
-                if (path_nodes[idx] && onSwitchFloor) {
-                  onSwitchFloor(path_nodes[idx].floor);
+                const targetNode = path_nodes && path_nodes[Math.min(idx, path_nodes.length - 1)];
+                if (targetNode && onSwitchFloor) {
+                  onSwitchFloor(targetNode.floor);
                 }
               }}
               style={{ cursor: 'pointer' }}

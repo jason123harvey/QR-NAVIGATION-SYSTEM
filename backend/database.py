@@ -211,7 +211,11 @@ def seed_sample_data(force=False):
     """, connections_data)
 
     # Seed QR codes for all locations
-    base_url = "http://localhost:5173/scan?location="
+    frontend_url = os.environ.get(
+        "FRONTEND_URL",
+        "http://localhost:5173"
+    ).rstrip("/")
+    base_url = f"{frontend_url}/scan?location="
     qr_data = []
     for loc in locations_data:
         code = loc[0]

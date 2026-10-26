@@ -36,6 +36,12 @@ export default function IndoorMap({
     return nodesOnFloor;
   }, [routeData, currentFloor]);
 
+  // Identify current step node from activeStepIndex
+  const currentStepNode = useMemo(() => {
+    if (!routeData || !routeData.path_nodes || routeData.path_nodes.length === 0) return null;
+    return routeData.path_nodes[Math.min(activeStepIndex, routeData.path_nodes.length - 1)];
+  }, [routeData, activeStepIndex]);
+
   // Generate SVG polyline points string "x1,y1 x2,y2 ..."
   const pathPointsString = useMemo(() => {
     if (!currentFloorPathPoints || currentFloorPathPoints.length < 2) return '';
@@ -208,6 +214,7 @@ export default function IndoorMap({
             const isCorridor = loc.type === 'corridor';
             const isStart = startLocation && startLocation.location_code === loc.location_code;
             const isDest = destinationLocation && destinationLocation.location_code === loc.location_code;
+            const isCurrentStep = Boolean(currentStepNode && currentStepNode.location_code === loc.location_code);
             const width = isCorridor ? 24 : (loc.type === 'auditorium' || loc.type === 'library' ? 140 : 110);
             const height = isCorridor ? 24 : (loc.type === 'auditorium' || loc.type === 'library' ? 80 : 70);
             const rx = isCorridor ? 12 : 8;
@@ -230,9 +237,9 @@ export default function IndoorMap({
                   rx={rx}
                   fill={fillColor}
                   fillOpacity={isCorridor ? 0.3 : 0.85}
-                  stroke={isStart ? '#10b981' : isDest ? '#ef4444' : '#ffffff'}
-                  strokeWidth={isStart || isDest ? 3 : 1}
-                  strokeOpacity={0.7}
+                  stroke={isCurrentStep ? '#38bdf8' : isStart ? '#10b981' : isDest ? '#ef4444' : '#ffffff'}
+                  strokeWidth={isCurrentStep ? 4 : isStart || isDest ? 3 : 1}
+                  strokeOpacity={isCurrentStep ? 1 : 0.7}
                 />
 
                 {/* Text Label */}
@@ -324,6 +331,17 @@ export default function IndoorMap({
               </text>
             </g>
           )}
+
+          {/* Current Step Marker (Cyan Radar Pulse) */}
+          {currentStepNode && currentStepNode.floor === currentFloor && (
+            <g transform={`translate(${currentStepNode.x_coordinate}, ${currentStepNode.y_coordinate})`}>
+              <circle className="radar-marker" r="22" fill="#38bdf8" fillOpacity="0.45" />
+              <circle r="9" fill="#0284c7" stroke="#ffffff" strokeWidth="2.5" />
+              <text y="-14" fill="#38bdf8" fontSize="10" fontWeight="800" textAnchor="middle">
+                CURRENT STEP
+              </text>
+            </g>
+          )}
         </svg>
       </div>
 
@@ -354,6 +372,12 @@ export default function IndoorMap({
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }}></span>
           Destination
         </div>
+        {currentStepNode && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#38bdf8' }}></span>
+            Current Step
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
           <span style={{ width: 14, height: 3, background: '#a5b4fc', borderRadius: 2 }}></span>
           Route Path

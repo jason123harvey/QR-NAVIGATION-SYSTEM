@@ -104,6 +104,19 @@ export default function Navigation({ currentLocation, onSetCurrentLocation }) {
         }
       }
 
+      // If no start location is specified in URL and startLoc is null, default to currentLocation or MAIN_ENTRANCE
+      if (!resolvedStart && resolvedDest) {
+        const fallbackCode = currentLocation?.location_code || 'MAIN_ENTRANCE';
+        try {
+          const fetchedFallback = await fetchLocationByCode(fallbackCode);
+          resolvedStart = fetchedFallback;
+          setStartLoc(fetchedFallback);
+          if (onSetCurrentLocation) onSetCurrentLocation(fetchedFallback);
+        } catch (e) {
+          console.warn('Could not resolve default start code:', fallbackCode);
+        }
+      }
+
       // If both start and destination are resolved, compute route
       if (resolvedStart && resolvedDest) {
         calculateNavigationRoute(resolvedStart.location_code, resolvedDest.location_code, resolvedStart.floor);
